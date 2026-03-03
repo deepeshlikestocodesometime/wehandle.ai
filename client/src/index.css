@@ -1,0 +1,29 @@
+@import url('https://api.fontshare.com/v2/css?f[]=switzer@300,400,500,600,700&f[]=author@300,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-canvas text-ink-base font-sans antialiased;
+    background-image: radial-gradient(circle at 50% 0%, #FFFFFF 0%, #FDFCFC 100%);
+    min-height: 100vh;
+  }
+  h1, h2, h3, h4 { @apply tracking-tight font-semibold text-ink-base; }
+}
+
+@layer components {
+  .card-monolith {
+    @apply bg-surface text-ink-onDark border border-surface-border rounded-card shadow-monolith transition-all duration-500;
+  }
+  .input-dark {
+    @apply bg-surface-highlight border border-surface-border text-ink-onDark placeholder:text-ink-mutedOnDark focus:border-ai focus:ring-1 focus:ring-ai outline-none transition-all rounded-input;
+  }
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-track { @apply bg-transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-surface-border rounded-full hover:bg-ai/40; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }

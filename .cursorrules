@@ -1,0 +1,50 @@
+# WeHandle.ai | Platinum Intelligence Project Rules
+
+## 1. PROJECT STRUCTURE (Monorepo)
+- /client: Merchant Dashboard & Landing (Port 5173).
+- /admin: Internal God View (Port 5174).
+- /server: FastAPI Backend (Port 8000).
+
+## 2. THE DESIGN SYSTEM: "CONTRAST ECLIPSE"
+The AI must strictly adhere to these visual tokens. Do not use standard Tailwind colors.
+
+### Core Palette (tailwind.config.js):
+- canvas: '#FDFCFC' (Warm White Background)
+- surface: '#111113' (Midnight Charcoal for Cards/Sidebars)
+- ink: '#111827' (Primary Charcoal Text)
+- ai: '#7C3AED' (Royal Violet Accent)
+- success: '#10B981'
+- error: '#EF4444'
+
+### CSS & Typography (Defined in client/src/index.css):
+- Headers: 'Switzer', sans-serif (Geometric)
+- Body/Editorial: 'Author', serif (Italicized for premium feel)
+- Technical Data: 'JetBrains Mono', monospace
+- Global Styles: Custom scrollbars and 'card-monolith' class are in index.css.
+
+## 3. FRONTEND GUIDELINES (React/Vite)
+- **UI Engine:** Always use the custom Button component: `client/src/components/ui/Button.jsx`.
+- **API Client:** Always use the Axios instance: `client/src/lib/api.js`.
+- **Styling:** Use semantic Tailwind classes (e.g., `bg-surface`, `text-ai`).
+- **Icons:** Use `lucide-react`.
+- **Animations:** Use `framer-motion` and the custom keyframes in tailwind.config.js (lift, orbit, cognitive-pulse).
+
+## 4. BACKEND GUIDELINES (FastAPI/Postgres)
+- **Database:** PostgreSQL with `pgvector` extension.
+- **ORM:** SQLAlchemy 2.0 (Must use `async` sessions).
+- **Validation:** Pydantic V2. Every API route must have a response_model.
+- **Models:** Defined in `server/app/models/`.
+- **Schemas:** Defined in `server/app/schemas/`.
+- **Logic:** Keep business logic in `server/app/api/` and heavy tasks in `server/app/services/`.
+
+## 5. REPOSITORY SOURCE OF TRUTH
+- **Styling Config:** `client/tailwind.config.js`
+- **Global CSS:** `client/src/index.css`
+- **Frontend API Map:** `client/src/lib/api.js`
+- **Backend Entry:** `server/app/main.py`
+- **DB Connection:** `server/app/core/database.py`
+
+## 6. OPERATIONAL RULES
+- When wiring frontend to backend, verify the Pydantic schema in the server matches the Axios payload in the client.
+- Always check `server/app/api/deps.py` for auth dependency before creating protected routes.
+- If editing CSS, ensure you are not breaking the "Contrast Eclipse" high-contrast editorial look.

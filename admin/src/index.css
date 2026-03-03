@@ -1,0 +1,23 @@
+@import url('https://api.fontshare.com/v2/css?f[]=switzer@300,400,500,600,700&f[]=author@300,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-canvas text-ink-base font-sans antialiased;
+    background-image: radial-gradient(circle at 50% 0%, #FFFFFF 0%, #FDFCFC 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .card-monolith {
+    @apply bg-surface text-ink-onDark border border-surface-border rounded-card shadow-monolith;
+  }
+  .btn-admin {
+    @apply bg-ai text-white font-medium hover:bg-ai-hover shadow-glow transition-all rounded-input active:translate-y-[1px];
+  }
+}

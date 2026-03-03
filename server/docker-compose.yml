@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  db:
+    image: ankane/pgvector:latest # Postgres with Vector extension pre-installed
+    container_name: wehandle_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=wehandle
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    container_name: wehandle_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
