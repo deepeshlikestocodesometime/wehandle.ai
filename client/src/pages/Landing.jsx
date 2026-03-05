@@ -36,6 +36,13 @@ const INTEGRATIONS = [
   { id: 'sms', name: 'iMessage/SMS', color: '#000000', icon: Phone, desc: "The elite concierge touch" },
 ];
 
+const CURRENCIES = [
+  { id: 'usd', label: 'USD', symbol: '$' },
+  { id: 'eur', label: 'EUR', symbol: '€' },
+  { id: 'gbp', label: 'GBP', symbol: '£' },
+  { id: 'aed', label: 'AED', symbol: 'د.إ' },
+];
+
 const SECTIONS = [
   { label: 'Nexus', id: 'nexus' },
   { label: 'ROI Engine', id: 'roi-engine' },
@@ -55,6 +62,9 @@ export default function Landing() {
   const [roiTickets, setRoiTickets] = useState(5000);
   const [roiHumanCost, setRoiHumanCost] = useState(15);
   const [roiSavings, setRoiSavings] = useState(0);
+  const [currency, setCurrency] = useState('usd');
+
+  const activeCurrency = CURRENCIES.find((c) => c.id === currency) ?? CURRENCIES[0];
 
   // LOGIC: Smart Header Scroll
   useEffect(() => {
@@ -77,7 +87,7 @@ export default function Landing() {
   useEffect(() => {
     const automated = roiTickets * 0.84; // 84% res rate
     const humanTotal = automated * roiHumanCost;
-    const aiTotal = automated * 0.90; // $0.90 resolve fee
+    const aiTotal = humanTotal * 0.25; // assume ~75% cheaper with Autopilot
     setRoiSavings(Math.round(humanTotal - aiTotal));
   }, [roiTickets, roiHumanCost]);
 
@@ -206,7 +216,7 @@ export default function Landing() {
 
       {/* SECTION 4: ROI ENGINE (Functional Component Built-in) */}
       <section className="py-40 bg-white" id="roi-engine">
-        <div className="max-w-6xl mx-auto px-10">
+        <div className="max-w-6xl mx-auto px-4 md:px-10">
           <div className="text-center mb-24 space-y-6">
              <h2 className="text-7xl font-bold tracking-tighter">Measure the Impact.</h2>
              <p className="text-2xl text-ink-muted font-serif italic max-w-2xl mx-auto">
@@ -216,7 +226,7 @@ export default function Landing() {
 
           <div className="card-monolith grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden shadow-2xl border-none">
              {/* Left: Controls */}
-             <div className="lg:col-span-7 p-16 space-y-16 bg-surface">
+             <div className="lg:col-span-7 p-10 md:p-16 space-y-16 bg-surface">
                 <div className="space-y-12">
                    <div className="space-y-6">
                       <div className="flex justify-between items-end">
@@ -236,8 +246,22 @@ export default function Landing() {
                           <p className="text-[11px] font-bold uppercase tracking-[0.4em] text-ink-mutedOnDark">Human Cost / Ticket</p>
                           <p className="text-xs text-ink-mutedOnDark">What you currently pay per resolved ticket.</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-ink-mutedOnDark">$</span>
+                        <div className="flex items-center gap-4">
+                          <div className="relative">
+                            <select
+                              value={currency}
+                              onChange={(e) => setCurrency(e.target.value)}
+                              className="bg-surface-highlight border border-surface-border rounded-lg px-3 py-1 text-xs text-ink-mutedOnDark uppercase tracking-[0.2em] focus:outline-none focus:ring-1 focus:ring-ai"
+                            >
+                              {CURRENCIES.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-ink-mutedOnDark">{activeCurrency.symbol}</span>
                           <input
                             type="number"
                             min="5"
@@ -247,6 +271,7 @@ export default function Landing() {
                             onChange={(e) => setRoiHumanCost(Number(e.target.value) || 0)}
                             className="w-24 bg-transparent border border-surface-border rounded-lg px-3 py-1 text-right text-ink-mutedOnDark text-sm focus:outline-none focus:ring-1 focus:ring-ai"
                           />
+                          </div>
                         </div>
                      </div>
 
@@ -265,8 +290,8 @@ export default function Landing() {
                               <DollarSign className="w-5 h-5 text-ai" />
                            </div>
                            <div>
-                              <p className="text-sm text-white font-bold tracking-tight">$0.90 per resolved ticket</p>
-                              <p className="text-xs text-ink-mutedOnDark">Vs. your human cost baseline of ${roiHumanCost.toFixed(2)}</p>
+                              <p className="text-sm text-white font-bold tracking-tight">Usage-Based Autopilot Pricing</p>
+                              <p className="text-xs text-ink-mutedOnDark">We model rates off your current support baseline. Talk to us for exact economics.</p>
                            </div>
                         </div>
                      </div>
@@ -275,7 +300,7 @@ export default function Landing() {
              </div>
 
              {/* Right: Outcome Result */}
-             <div className="lg:col-span-5 bg-ai p-16 flex flex-col justify-center items-center text-center relative overflow-hidden group">
+             <div className="lg:col-span-5 bg-ai p-10 md:p-16 flex flex-col justify-center items-center text-center relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-700 opacity-60 group-hover:scale-110 transition-transform duration-1000" />
                 <div className="relative z-10 space-y-12">
                    <p className="text-[11px] font-bold uppercase tracking-[0.5em] text-white/50">Annual Operational Savings</p>
@@ -283,12 +308,13 @@ export default function Landing() {
                      key={roiSavings}
                      initial={{ scale: 0.95, opacity: 0 }} 
                      animate={{ scale: 1, opacity: 1 }}
-                     className="text-9xl font-mono text-white tracking-tighter font-medium"
+                     className="text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-mono text-white tracking-tighter font-medium"
                    >
-                     ${(roiSavings * 12).toLocaleString()}
+                     {activeCurrency.symbol}
+                     {(roiSavings * 12).toLocaleString()}
                    </motion.h4>
                    <p className="text-xs text-white/80 max-w-sm mx-auto">
-                     Based on {roiTickets.toLocaleString()} tickets / month, 84% auto-resolved, your human cost of ${roiHumanCost.toFixed(2)} per ticket vs $0.90 with WeHandle Autopilot.
+                     Based on {roiTickets.toLocaleString()} tickets / month, 84% auto-resolved and an estimated 75% lower cost per resolution with WeHandle Autopilot, in {activeCurrency.label}.
                    </p>
                    <div className="space-y-4">
                       <Button onClick={() => navigate('/auth')} variant="white" className="w-full h-20 text-xl shadow-2xl">
