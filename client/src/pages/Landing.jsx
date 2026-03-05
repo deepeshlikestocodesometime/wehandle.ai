@@ -110,7 +110,7 @@ export default function Landing() {
           <div className="w-10 h-10 bg-surface rounded-xl flex items-center justify-center text-white shadow-glow">
             <Sparkles className="w-6 h-6 text-ai" />
           </div>
-          <span className="font-bold text-2xl tracking-tighter">WeHandle.ai</span>
+          <span className="font-bold text-2xl tracking-tighter">wehandlecx</span>
         </div>
         <div className="hidden lg:flex items-center gap-10">
           {SECTIONS.map(({ label, id }) => (
