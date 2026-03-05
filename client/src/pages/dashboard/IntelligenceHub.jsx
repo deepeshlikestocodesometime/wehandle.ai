@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Book, 
@@ -16,6 +16,7 @@ import {
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import { Button } from '../../components/ui/Button';
 import { cn } from '../../lib/utils';
+import { suggestionsApi } from '../../lib/api';
 
 const MOCK_KNOWLEDGE = [
   { id: 1, category: "Shipping & Delivery", items: [
@@ -34,6 +35,19 @@ const MOCK_KNOWLEDGE = [
 export default function IntelligenceHub() {
   const [selectedItem, setSelectedItem] = useState(MOCK_KNOWLEDGE[1].items[0]);
   const [isEditing, setIsEditing] = useState(false);
+  const [suggestion, setSuggestion] = useState(null);
+
+  useEffect(() => {
+    const loadSuggestions = async () => {
+      try {
+        const data = await suggestionsApi.getSuggestions();
+        setSuggestion(data[0] || null);
+      } catch {
+        setSuggestion(null);
+      }
+    };
+    loadSuggestions();
+  }, []);
 
   return (
     <DashboardLayout>
@@ -207,7 +221,11 @@ export default function IntelligenceHub() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-ink-base">Neural Suggestion</p>
-                  <p className="text-[10px] text-ink-muted">The AI recently struggled with "Overnight Shipping" questions. Add a rule for this?</p>
+                  <p className="text-[10px] text-ink-muted">
+                    {suggestion
+                      ? suggestion.summary
+                      : 'The AI will surface topics where customers struggle and your Knowledge Base has gaps.'}
+                  </p>
                 </div>
               </div>
               <Button variant="ghost" size="sm" className="text-[10px] font-bold text-ai hover:bg-ai/10">

@@ -58,3 +58,19 @@ async def login(user_in: UserLogin, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/2fa/enable")
+async def enable_two_factor(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """
+    Skeleton endpoint for enabling 2FA.
+    Generates a placeholder TOTP URI and marks the user as 2FA-enabled.
+    """
+    # In production, this would generate a per-user TOTP secret and QR code.
+    secret = "TOTP-SECRET-PLACEHOLDER"
+    current_user.two_factor_secret = secret
+    current_user.is_two_factor_enabled = True
+    await db.commit()
+
+    otpauth_uri = f"otpauth://totp/WeHandle.ai:{current_user.email}?secret={secret}&issuer=WeHandle.ai"
+    return {"otpauth_uri": otpauth_uri, "enabled": True}

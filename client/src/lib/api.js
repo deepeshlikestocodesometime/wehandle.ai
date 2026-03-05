@@ -44,6 +44,10 @@ export const authApi = {
     const response = await api.get('/auth/me');
     return response.data;
   },
+  enable2FA: async () => {
+    const response = await api.post('/auth/2fa/enable');
+    return response.data;
+  },
 
   logout: () => {
     localStorage.removeItem('wehandle_token');
@@ -72,6 +76,10 @@ export const onboardingApi = {
   deploy: async () => {
     const response = await api.post('/onboarding/step4/deploy');
     return response.data;
+  },
+  verifyDeployment: async () => {
+    const response = await api.post('/onboarding/verify-deployment', {});
+    return response.data;
   }
 };
 
@@ -89,6 +97,10 @@ export const inboxApi = {
   },
   sendReply: async (ticketId, content) => {
     const response = await api.post(`/inbox/${ticketId}/messages`, { content });
+    return response.data;
+  },
+  getContext: async (ticketId) => {
+    const response = await api.get(`/inbox/${ticketId}/context`);
     return response.data;
   }
 };
@@ -108,6 +120,39 @@ export const knowledgeApi = {
     const response = await api.delete(`/knowledge/${chunkId}`);
     return response.data;
   }
+};
+
+export const suggestionsApi = {
+  getSuggestions: async () => {
+    const response = await api.get('/suggestions');
+    return response.data;
+  },
+};
+
+export const teamApi = {
+  list: async () => {
+    const response = await api.get('/team');
+    return response.data;
+  },
+  invite: async (email) => {
+    const response = await api.post('/team/invite', null, { params: { email } });
+    return response.data;
+  },
+  remove: async (userId) => {
+    const response = await api.delete(`/team/${userId}`);
+    return response.data;
+  },
+};
+
+export const settingsApi = {
+  getApiKey: async () => {
+    const response = await api.get('/settings/api-key');
+    return response.data;
+  },
+  rotateApiKey: async () => {
+    const response = await api.post('/settings/api-key/rotate');
+    return response.data;
+  },
 };
 
 

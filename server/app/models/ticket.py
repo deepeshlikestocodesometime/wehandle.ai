@@ -1,12 +1,23 @@
-from sqlalchemy import Column, String, ForeignKey, Boolean
+import enum
+from sqlalchemy import Column, String, ForeignKey, Boolean, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from .base import BaseModel
+
+
+class Channel(str, enum.Enum):
+    EMAIL = "EMAIL"
+    WIDGET = "WIDGET"
+    WHATSAPP = "WHATSAPP"
+    INSTAGRAM = "INSTAGRAM"
 
 class Ticket(BaseModel):
     __tablename__ = "tickets"
 
     merchant_id = Column(ForeignKey("merchants.id"), index=True)
+
+    # --- ORIGIN CHANNEL (Omnichannel Router) ---
+    channel = Column(Enum(Channel), nullable=False, default=Channel.EMAIL)
     
     # --- CUSTOMER CONTEXT (Maps to Inbox Sidebar) ---
     customer_email = Column(String, index=True)

@@ -25,16 +25,19 @@ export default function Step1Connect() {
     try {
       const storeDomain =
         selectedPlatform === 'shopify'
-          ? `${domain.trim()}.myshopify.com`
+          ? domain.trim()
           : domain.trim();
 
       const data = await onboardingApi.connectStore(storeDomain);
 
-      if (data?.onboarding_step != null) {
-        localStorage.setItem('onboarding_step', String(data.onboarding_step));
+      if (data?.authorization_url) {
+        // Hand off to Shopify OAuth – this will eventually return the user
+        // to our /step-2 route after the callback completes.
+        window.location.href = data.authorization_url;
+        return;
       }
 
-      navigate('/step-2');
+      setError('Unexpected response from Shopify connect. Please try again.');
     } catch (err) {
       console.error('Error connecting store:', err?.response?.data || err);
       const detail = err?.response?.data?.detail;

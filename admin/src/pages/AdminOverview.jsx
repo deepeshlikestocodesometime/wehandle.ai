@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   DollarSign, 
   ShoppingBag, 
@@ -15,22 +15,33 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 import { cn } from '../lib/utils';
-
-const GLOBAL_STATS = [
-  { label: "Platform MRR", value: "$42,800", trend: "+12.4%", icon: DollarSign },
-  { label: "Client Stores", value: "154", trend: "+8", icon: ShoppingBag },
-  { label: "Total Resolutions", value: "84.2k", trend: "+18%", icon: Cpu },
-  { label: "Global CSAT", value: "4.82", trend: "+0.02", icon: User },
-];
-
-const CLIENT_LEDGER = [
-  { id: 1, name: "Luminaire Co.", platform: "Shopify", plan: "Growth", usage: "82%", status: "healthy", mrr: "$249" },
-  { id: 2, name: "Atlas Outdoors", platform: "Woo", plan: "Scale", usage: "45%", status: "healthy", mrr: "$499" },
-  { id: 3, name: "Zenith Beauty", platform: "Shopify", plan: "Growth", usage: "98%", status: "warning", mrr: "$249" },
-  { id: 4, name: "Urban Tech", platform: "Custom", plan: "Enterprise", usage: "12%", status: "healthy", mrr: "$1,200" },
-];
+import { adminApi } from '../lib/api';
 
 export default function AdminOverview() {
+  const [stats, setStats] = useState(null);
+  const [merchants, setMerchants] = useState([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const [s, m] = await Promise.all([
+        adminApi.getStats(),
+        adminApi.getMerchants(),
+      ]);
+      setStats(s);
+      setMerchants(m);
+    };
+    load();
+  }, []);
+
+  if (!stats) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="w-10 h-10 border-2 border-gray-100 border-t-[#2563EB] rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
+    );
+  }
   return (
     <AdminLayout>
       <div className="space-y-10 animate-lift">
@@ -43,31 +54,61 @@ export default function AdminOverview() {
           </div>
           <div className="flex gap-4 items-center">
              <div className="text-right">
-               <p className="text-[10px] font-bold text-ink-muted uppercase tracking-widest">Network Latency</p>
-               <p className="text-xs font-mono font-bold text-success">24ms (Optimal)</p>
+               <p className="text-[10px] font-bold text-ink-muted uppercase tracking-widest">Global AI Resolution Rate</p>
+               <p className="text-xs font-mono font-bold text-success">
+                 {(stats.avgAiResolutionRate * 100).toFixed(1)}%
+               </p>
              </div>
-             <div className="w-12 h-12 rounded-full bg-ai/5 border border-ai/10 flex items-center justify-center">
-               <Activity className="w-6 h-6 text-ai animate-pulse" />
+             <div className="w-12 h-12 rounded-full bg-[#2563EB]/5 border border-[#2563EB]/20 flex items-center justify-center">
+               <Activity className="w-6 h-6 text-[#2563EB] animate-pulse" />
              </div>
           </div>
         </div>
 
         {/* Global Stat Cards: Obsidian Monoliths on Milk Canvas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {GLOBAL_STATS.map((stat, i) => (
-            <div key={i} className="card-monolith p-6 group hover:bg-surface-highlight transition-all">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-ai group-hover:text-white transition-colors">
-                  <stat.icon className="w-5 h-5" />
-                </div>
-                <div className="flex items-center text-[10px] font-bold text-success bg-success/10 px-2 py-1 rounded-full border border-success/20">
-                   {stat.trend}
-                </div>
+          <div className="card-monolith p-6 group hover:bg-surface-highlight transition-all">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-[#2563EB] group-hover:text-white transition-colors">
+                <DollarSign className="w-5 h-5" />
               </div>
-              <p className="text-xs font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1 opacity-60">{stat.label}</p>
-              <h3 className="text-3xl font-mono font-medium text-white">{stat.value}</h3>
             </div>
-          ))}
+            <p className="text-xs font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1 opacity-60">Platform MRR</p>
+            <h3 className="text-3xl font-mono font-medium text-white">
+              ${stats.globalMrr.toFixed(2)}
+            </h3>
+          </div>
+          <div className="card-monolith p-6 group hover:bg-surface-highlight transition-all">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-[#2563EB] group-hover:text-white transition-colors">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1 opacity-60">Client Stores</p>
+            <h3 className="text-3xl font-mono font-medium text-white">
+              {stats.totalActiveMerchants}
+            </h3>
+          </div>
+          <div className="card-monolith p-6 group hover:bg-surface-highlight transition-all">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-[#2563EB] group-hover:text-white transition-colors">
+                <Cpu className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1 opacity-60">AI Resolution Rate</p>
+            <h3 className="text-3xl font-mono font-medium text-white">
+              {(stats.avgAiResolutionRate * 100).toFixed(1)}%
+            </h3>
+          </div>
+          <div className="card-monolith p-6 group hover:bg-surface-highlight transition-all">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-[#2563EB] group-hover:text-white transition-colors">
+                <User className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1 opacity-60">Global CSAT</p>
+            <h3 className="text-3xl font-mono font-medium text-white">4.80</h3>
+          </div>
         </div>
 
         {/* Client Ledger Table */}
@@ -101,17 +142,17 @@ export default function AdminOverview() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {CLIENT_LEDGER.map((client) => (
-                  <tr key={client.id} className="hover:bg-canvas-muted/50 transition-colors group">
+                {merchants.map((merchant) => (
+                  <tr key={merchant.id} className="hover:bg-canvas-muted/50 transition-colors group">
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-ink-base">{client.name}</span>
+                      <span className="text-sm font-bold text-ink-base">{merchant.name}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs text-ink-muted font-mono">{client.platform}</span>
+                      <span className="text-xs text-ink-muted font-mono">Shopify</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-surface text-white border border-surface-border">
-                        {client.plan}
+                        Growth
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -120,25 +161,29 @@ export default function AdminOverview() {
                           <div 
                             className={cn(
                               "h-full transition-all duration-1000",
-                              client.usage.replace('%','') > 90 ? "bg-error" : "bg-ai"
+                              merchant.ai_conversations_used > 4000 ? "bg-error" : "bg-[#2563EB]"
                             )} 
-                            style={{ width: client.usage }} 
+                            style={{ width: "80%" }} 
                           />
                         </div>
-                        <span className="text-[10px] font-mono text-ink-muted">{client.usage}</span>
+                        <span className="text-[10px] font-mono text-ink-muted">
+                          {merchant.ai_conversations_used} convos
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5">
                         <div className={cn(
                           "w-1.5 h-1.5 rounded-full shadow-[0_0_8px_currentColor]",
-                          client.status === 'healthy' ? "text-success bg-success" : "text-warning bg-warning animate-pulse"
+                          "text-success bg-success"
                         )} />
-                        <span className="text-xs capitalize text-ink-muted font-medium">{client.status}</span>
+                        <span className="text-xs capitalize text-ink-muted font-medium">healthy</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-mono font-bold text-ink-base">{client.mrr}</span>
+                      <span className="text-sm font-mono font-bold text-ink-base">
+                        ${merchant.mrr.toFixed(2)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button className="p-2 text-gray-300 hover:text-ink-base transition-colors">

@@ -9,8 +9,8 @@ SECRET_KEY = "wehandle_platinum_intelligence_super_secret_key_v1"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # Keep merchants logged in for 7 days
 
-# Bcrypt handles our password hashing securely
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use sha256_crypt to avoid bcrypt backend issues and 72-byte limits on some platforms
+pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

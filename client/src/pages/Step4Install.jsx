@@ -28,7 +28,7 @@ export default function Step4Install() {
     setStatus('verifying');
 
     try {
-      const data = await onboardingApi.deploy();
+      const data = await onboardingApi.verifyDeployment();
 
       if (data?.onboarding_step != null) {
         localStorage.setItem('onboarding_step', String(data.onboarding_step));

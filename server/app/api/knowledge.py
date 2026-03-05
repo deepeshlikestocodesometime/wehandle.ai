@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -9,6 +9,7 @@ from app.models.merchant import User
 from app.models.ai import KnowledgeChunk
 from app.api.deps import get_current_user
 from app.schemas.knowledge import KnowledgeCreate, KnowledgeUpdate, KnowledgeResponse
+from app.workers.knowledge_workers import process_document_task
 
 router = APIRouter()
 
@@ -47,6 +48,45 @@ async def add_knowledge(
     db.add(new_chunk)
     await db.commit()
     await db.refresh(new_chunk)
+
+    # Trigger embedding in the background
+    process_document_task.delay(str(new_chunk.id))
+    return new_chunk
+
+
+@router.post("/upload", response_model=KnowledgeResponse)
+async def upload_knowledge_file(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Handles PDF/text file uploads from Step 2 (Knowledge Ingestion).
+    Extracts raw text and enqueues an embedding task.
+    """
+    raw_bytes = await file.read()
+    try:
+        text = raw_bytes.decode("utf-8", errors="ignore")
+    except Exception:
+        text = ""
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Uploaded file did not contain readable text")
+
+    dummy_vector = [0.0] * 1536
+
+    new_chunk = KnowledgeChunk(
+        merchant_id=current_user.merchant_id,
+        source_type="PDF",
+        source_name=file.filename,
+        content=text,
+        embedding=dummy_vector,
+    )
+    db.add(new_chunk)
+    await db.commit()
+    await db.refresh(new_chunk)
+
+    process_document_task.delay(str(new_chunk.id))
     return new_chunk
 
 

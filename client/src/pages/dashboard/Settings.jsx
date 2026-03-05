@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Settings as SettingsIcon, 
@@ -16,6 +16,7 @@ import {
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import { Button } from '../../components/ui/Button';
 import { cn } from '../../lib/utils';
+import { teamApi, settingsApi, authApi } from '../../lib/api';
 
 const TABS = [
   { id: 'general', name: 'General', icon: SettingsIcon },
@@ -32,6 +33,56 @@ export default function Settings() {
   // State for AI sliders
   const [tone, setTone] = useState(7);
   const [length, setLength] = useState(4);
+  const [team, setTeam] = useState([]);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+
+  useEffect(() => {
+    const loadSecurity = async () => {
+      try {
+        const data = await settingsApi.getApiKey();
+        setApiKey(data.api_key || '');
+        setTwoFactorEnabled(!!data.two_factor_enabled);
+      } catch {
+        setApiKey('');
+      }
+    };
+    const loadTeam = async () => {
+      try {
+        const data = await teamApi.list();
+        setTeam(data);
+      } catch {
+        setTeam([]);
+      }
+    };
+    loadSecurity();
+    loadTeam();
+  }, []);
+
+  const handleInvite = async () => {
+    if (!newMemberEmail.trim()) return;
+    const created = await teamApi.invite(newMemberEmail.trim());
+    setTeam((prev) => [...prev, created]);
+    setNewMemberEmail('');
+  };
+
+  const handleRemove = async (id) => {
+    await teamApi.remove(id);
+    setTeam((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const handleRotateKey = async () => {
+    const data = await settingsApi.rotateApiKey();
+    setApiKey(data.api_key || '');
+  };
+
+  const handleEnable2FA = async () => {
+    const data = await authApi.enable2FA();
+    if (data?.enabled) {
+      setTwoFactorEnabled(true);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -201,15 +252,22 @@ export default function Settings() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <label className="text-[10px] font-bold text-white uppercase tracking-widest">Production API Key</label>
-                        <span className="px-2 py-0.5 bg-success/10 text-success text-[9px] font-bold uppercase border border-success/20 rounded">Live</span>
+                        <span className="px-2 py-0.5 bg-success/10 text-success text-[9px] font-bold uppercase border border-success/20 rounded">
+                          {apiKey ? 'Live' : 'Not Set'}
+                        </span>
                       </div>
                       <div className="flex gap-2">
                         <input 
                           type="password" readOnly 
-                          value="wh_live_283749283749283749"
+                          value={apiKey}
                           className="flex-1 bg-surface-highlight border border-surface-border rounded-lg px-4 py-2 font-mono text-sm text-ai outline-none"
                         />
-                        <Button className="h-10 px-4">Copy</Button>
+                        <Button className="h-10 px-4" onClick={() => navigator.clipboard.writeText(apiKey || '')}>
+                          Copy
+                        </Button>
+                        <Button className="h-10 px-4" onClick={handleRotateKey}>
+                          Rotate
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -219,11 +277,67 @@ export default function Settings() {
                       <Shield className="w-3 h-3" /> Advanced Protection
                     </h4>
                     <p className="text-[10px] text-error/60 mt-2 leading-relaxed">
-                      Two-factor authentication is currently disabled. We recommend enabling it for all administrator accounts to prevent unauthorized store access.
+                      Two-factor authentication is currently {twoFactorEnabled ? 'enabled' : 'disabled'}. We recommend enabling it for all administrator accounts to prevent unauthorized store access.
                     </p>
-                    <button className="mt-4 text-[10px] font-bold text-error uppercase tracking-widest hover:underline">
-                      Setup 2FA now
-                    </button>
+                    {!twoFactorEnabled && (
+                      <button
+                        className="mt-4 text-[10px] font-bold text-error uppercase tracking-widest hover:underline"
+                        onClick={handleEnable2FA}
+                      >
+                        Setup 2FA now
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: TEAM ACCESS */}
+              {activeTab === 'team' && (
+                <div className="space-y-10 animate-lift">
+                  <div>
+                    <h1 className="text-2xl font-bold text-white">Team Access</h1>
+                    <p className="text-ink-mutedOnDark mt-2">Manage who can access your command center.</p>
+                  </div>
+
+                  <div className="bg-surface border border-surface-border rounded-xl p-6 space-y-4">
+                    <div className="flex gap-3 items-center">
+                      <input
+                        type="email"
+                        value={newMemberEmail}
+                        onChange={(e) => setNewMemberEmail(e.target.value)}
+                        placeholder="agent@brand.com"
+                        className="flex-1 bg-surface-highlight border border-surface-border rounded-lg px-4 py-2 text-sm text-white outline-none"
+                      />
+                      <Button className="h-10 px-4" onClick={handleInvite}>
+                        Invite
+                      </Button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-bold text-ink-mutedOnDark uppercase tracking-widest">
+                          Active Members
+                        </span>
+                      </div>
+                      <div className="divide-y divide-surface-border">
+                        {team.map((member) => (
+                          <div key={member.id} className="flex items-center justify-between py-2">
+                            <div>
+                              <p className="text-sm font-bold text-white">{member.email}</p>
+                              <p className="text-[10px] uppercase text-ink-mutedOnDark tracking-widest">
+                                {member.role}
+                              </p>
+                            </div>
+                            <button
+                              className="text-[10px] font-bold text-error uppercase tracking-widest hover:underline"
+                              onClick={() => handleRemove(member.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
