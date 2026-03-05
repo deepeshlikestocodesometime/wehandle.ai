@@ -36,6 +36,13 @@ const INTEGRATIONS = [
   { id: 'sms', name: 'iMessage/SMS', color: '#000000', icon: Phone, desc: "The elite concierge touch" },
 ];
 
+const SECTIONS = [
+  { label: 'Nexus', id: 'nexus' },
+  { label: 'ROI Engine', id: 'roi-engine' },
+  { label: 'The Ledger', id: 'ledger' },
+  { label: 'Enterprise', id: 'enterprise' },
+];
+
 export default function Landing() {
   const navigate = useNavigate();
   
@@ -74,6 +81,13 @@ export default function Landing() {
     setRoiSavings(Math.round(humanTotal - aiTotal));
   }, [roiTickets, roiHumanCost]);
 
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-canvas font-sans text-ink-base selection:bg-violet-mist overflow-x-hidden">
       
@@ -89,9 +103,14 @@ export default function Landing() {
           <span className="font-bold text-2xl tracking-tighter">WeHandle.ai</span>
         </div>
         <div className="hidden lg:flex items-center gap-10">
-          {['Nexus', 'ROI Engine', 'The Ledger', 'Enterprise'].map((item) => (
-            <button key={item} className="text-[10px] font-bold uppercase tracking-[0.3em] text-ink-muted hover:text-ai transition-all">
-              {item}
+          {SECTIONS.map(({ label, id }) => (
+            <button
+              key={id}
+              type="button"
+              className="text-[10px] font-bold uppercase tracking-[0.3em] text-ink-muted hover:text-ai transition-all"
+              onClick={() => scrollToSection(id)}
+            >
+              {label}
             </button>
           ))}
         </div>
@@ -138,7 +157,7 @@ export default function Landing() {
       </section>
 
       {/* SECTION 3: INTEGRATION NEXUS (The Orbit Visual) */}
-      <section className="py-40 bg-platinum-canvas relative overflow-hidden border-b border-border-mist">
+      <section className="py-40 bg-platinum-canvas relative overflow-hidden border-b border-border-mist" id="nexus">
         <div className="max-w-7xl mx-auto px-10 grid grid-cols-1 lg:grid-cols-2 gap-32 items-center">
           <div className="space-y-12 relative z-10">
             <h2 className="text-7xl font-bold tracking-tighter leading-[0.85]">Vibrant <br />Omnichannel.</h2>
@@ -211,25 +230,46 @@ export default function Landing() {
                       />
                    </div>
 
-                   <div className="p-8 bg-surface-highlight border border-surface-border rounded-2xl space-y-6">
-                      <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 rounded-xl bg-ai/10 flex items-center justify-center">
-                            <Zap className="w-5 h-5 text-ai" />
-                         </div>
-                         <div>
-                            <p className="text-sm text-white font-bold tracking-tight">84% Auto-Resolution Rate</p>
-                            <p className="text-xs text-ink-mutedOnDark">Across all Shopify Plus clients</p>
-                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 rounded-xl bg-ai/10 flex items-center justify-center">
-                            <DollarSign className="w-5 h-5 text-ai" />
-                         </div>
-                         <div>
-                            <p className="text-sm text-white font-bold tracking-tight">$0.90 per resolved ticket</p>
-                            <p className="text-xs text-ink-mutedOnDark">Vs. $15.00 human baseline</p>
-                         </div>
-                      </div>
+                   <div className="space-y-8">
+                     <div className="flex justify-between items-center gap-6">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.4em] text-ink-mutedOnDark">Human Cost / Ticket</p>
+                          <p className="text-xs text-ink-mutedOnDark">What you currently pay per resolved ticket.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-ink-mutedOnDark">$</span>
+                          <input
+                            type="number"
+                            min="5"
+                            max="50"
+                            step="0.5"
+                            value={roiHumanCost}
+                            onChange={(e) => setRoiHumanCost(Number(e.target.value) || 0)}
+                            className="w-24 bg-transparent border border-surface-border rounded-lg px-3 py-1 text-right text-ink-mutedOnDark text-sm focus:outline-none focus:ring-1 focus:ring-ai"
+                          />
+                        </div>
+                     </div>
+
+                     <div className="p-8 bg-surface-highlight border border-surface-border rounded-2xl space-y-6">
+                        <div className="flex items-center gap-4">
+                           <div className="w-10 h-10 rounded-xl bg-ai/10 flex items-center justify-center">
+                              <Zap className="w-5 h-5 text-ai" />
+                           </div>
+                           <div>
+                              <p className="text-sm text-white font-bold tracking-tight">84% Auto-Resolution Rate</p>
+                              <p className="text-xs text-ink-mutedOnDark">Across all Shopify Plus clients</p>
+                           </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <div className="w-10 h-10 rounded-xl bg-ai/10 flex items-center justify-center">
+                              <DollarSign className="w-5 h-5 text-ai" />
+                           </div>
+                           <div>
+                              <p className="text-sm text-white font-bold tracking-tight">$0.90 per resolved ticket</p>
+                              <p className="text-xs text-ink-mutedOnDark">Vs. your human cost baseline of ${roiHumanCost.toFixed(2)}</p>
+                           </div>
+                        </div>
+                     </div>
                    </div>
                 </div>
              </div>
@@ -247,6 +287,9 @@ export default function Landing() {
                    >
                      ${(roiSavings * 12).toLocaleString()}
                    </motion.h4>
+                   <p className="text-xs text-white/80 max-w-sm mx-auto">
+                     Based on {roiTickets.toLocaleString()} tickets / month, 84% auto-resolved, your human cost of ${roiHumanCost.toFixed(2)} per ticket vs $0.90 with WeHandle Autopilot.
+                   </p>
                    <div className="space-y-4">
                       <Button onClick={() => navigate('/auth')} variant="white" className="w-full h-20 text-xl shadow-2xl">
                          Claim This Efficiency <ArrowRight className="ml-3 w-5 h-5" />
@@ -260,7 +303,7 @@ export default function Landing() {
       </section>
 
       {/* SECTION 5: THE LEDGER (Battle Comparison) */}
-      <section className="py-40 bg-platinum-canvas border-t border-border-mist relative">
+      <section className="py-40 bg-platinum-canvas border-t border-border-mist relative" id="ledger">
         <div className="max-w-7xl mx-auto px-10">
           <div className="text-center mb-32 space-y-6">
              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-ai text-white text-[9px] font-bold uppercase tracking-[0.3em] shadow-lg">The Ledger v1.4</div>
@@ -292,7 +335,7 @@ export default function Landing() {
       </section>
 
       {/* SECTION 6: FINAL LAUNCHPAD */}
-      <section className="py-64 px-8 text-center bg-white relative overflow-hidden">
+      <section className="py-64 px-8 text-center bg-white relative overflow-hidden" id="enterprise">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[800px] bg-violet-mist/30 blur-[180px] rounded-full pointer-events-none" />
         <div className="relative z-10 space-y-16">
            <h2 className="text-8xl md:text-[140px] font-bold tracking-tighter leading-none text-ink-base">
@@ -329,9 +372,33 @@ export default function Landing() {
                <div className="space-y-6">
                   <h5 className="text-[10px] font-bold uppercase tracking-[0.5em] text-white/40">Platform</h5>
                   <ul className="space-y-4 text-sm text-ink-mutedOnDark font-medium">
-                    <li className="hover:text-ai transition-colors cursor-pointer">ROI Calculator</li>
-                    <li className="hover:text-ai transition-colors cursor-pointer">Omnichannel</li>
-                    <li className="hover:text-ai transition-colors cursor-pointer">The Ledger</li>
+                    <li>
+                      <button
+                        type="button"
+                        className="hover:text-ai transition-colors cursor-pointer"
+                        onClick={() => scrollToSection('roi-engine')}
+                      >
+                        ROI Calculator
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        className="hover:text-ai transition-colors cursor-pointer"
+                        onClick={() => scrollToSection('nexus')}
+                      >
+                        Omnichannel
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        className="hover:text-ai transition-colors cursor-pointer"
+                        onClick={() => scrollToSection('ledger')}
+                      >
+                        The Ledger
+                      </button>
+                    </li>
                   </ul>
                </div>
                <div className="space-y-6">
