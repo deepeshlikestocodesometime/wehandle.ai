@@ -9,6 +9,9 @@ export default function Overview() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const ticketsResolved = Number(stats?.ticketsResolved || 0);
+  const computedRoi = ((ticketsResolved * 15.0) - (ticketsResolved * 0.9)).toFixed(2);
+
   useEffect(() => {
     const loadData = async () => {
       const statsData = await dashboardApi.getStats();
@@ -40,10 +43,10 @@ export default function Overview() {
         
         {/* Monolith Stat Grid (Dark Cards on Light Page) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard title="ROI Impact" value={`$${stats.moneySaved}`} icon={DollarSign} trend="+23%" isViolet={true} footer="Based on $15/ticket" />
-          <StatCard title="Auto-Resolutions" value={stats.ticketsResolved} icon={Zap} trend="+12%" footer={`${stats.resolutionRate}% Success`} />
-          <StatCard title="Response Speed" value={`${stats.avgResponseTime}s`} icon={Clock} trend="-89%" footer="Instant AI Interaction" />
-          <StatCard title="CSAT Index" value={stats.csatScore} icon={Users} trend="4.8" subLabel="/ 5.0" footer="847 Customer Ratings" />
+          <StatCard title="ROI Impact" value={`$${computedRoi}`} icon={DollarSign} trend={`${stats.resolutionRate || 0}%`} isViolet={true} footer="Formula: resolved * (15.00 - 0.90)" />
+          <StatCard title="Auto-Resolutions" value={ticketsResolved} icon={Zap} trend={`${stats.resolutionRate || 0}%`} footer="Live from ticket status" />
+          <StatCard title="Response Speed" value={`${stats.avgResponseTime || 0}s`} icon={Clock} trend={`${ticketsResolved} resolved`} footer="Customer-to-AI first response delta" />
+          <StatCard title="CSAT Index" value={stats.csatScore ?? 'N/A'} icon={Users} trend="Live" subLabel="/ 5.0" footer="From analytics service" />
         </div>
 
         {/* Live Feed: Dark Container */}

@@ -16,26 +16,42 @@ import {
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import { Button } from '../../components/ui/Button';
 import { cn } from '../../lib/utils';
-import { suggestionsApi } from '../../lib/api';
-
-const MOCK_KNOWLEDGE = [
-  { id: 1, category: "Shipping & Delivery", items: [
-    { id: 101, title: "Shipping Timelines", source: "Manual", updated: "2d ago" },
-    { id: 102, title: "International Tracking", source: "URL", updated: "5d ago" }
-  ]},
-  { id: 2, category: "Returns & Refunds", items: [
-    { id: 201, title: "30-Day Policy", source: "PDF", updated: "1h ago" },
-    { id: 202, title: "Damaged Items", source: "Manual", updated: "1w ago" }
-  ]},
-  { id: 3, category: "Product Inquiries", items: [
-    { id: 301, title: "Sizing Guide", source: "URL", updated: "Just now" }
-  ]},
-];
+import { suggestionsApi, knowledgeApi } from '../../lib/api';
 
 export default function IntelligenceHub() {
-  const [selectedItem, setSelectedItem] = useState(MOCK_KNOWLEDGE[1].items[0]);
+  const [knowledgeByCategory, setKnowledgeByCategory] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [suggestion, setSuggestion] = useState(null);
+
+  const getRuleTitle = (rule) => {
+    if (!rule) return '';
+    const sourceName = rule.source_name || '';
+    const content = rule.content || '';
+
+    // For manual entries, source_name is often generic ("Manual Entry ..."),
+    // so derive a more human title from the content.
+    const shouldDeriveFromContent =
+      !sourceName || sourceName.toLowerCase().startsWith('manual entry');
+
+    if (!shouldDeriveFromContent) return sourceName;
+
+    const fortyFiveDayMatch = content.match(/.{0,40}\b45\s*[- ]?day\b.{0,60}/i);
+    if (fortyFiveDayMatch && fortyFiveDayMatch[0]) {
+      const snippet = fortyFiveDayMatch[0].trim();
+      return snippet.length > 60 ? `${snippet.slice(0, 60)}...` : snippet;
+    }
+
+    const firstNonEmptyLine = content
+      .split('\n')
+      .map((s) => s.trim())
+      .find((s) => s.length > 0);
+
+    if (!firstNonEmptyLine) return sourceName || 'Knowledge Rule';
+
+    // Keep it short for the sidebar label.
+    return firstNonEmptyLine.length > 60 ? `${firstNonEmptyLine.slice(0, 60)}...` : firstNonEmptyLine;
+  };
 
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -47,6 +63,33 @@ export default function IntelligenceHub() {
       }
     };
     loadSuggestions();
+  }, []);
+
+  useEffect(() => {
+    const loadKnowledge = async () => {
+      try {
+        const rules = await knowledgeApi.getRules();
+        const grouped = {};
+        for (const rule of rules || []) {
+          const category = rule.source_type || 'Knowledge';
+          if (!grouped[category]) grouped[category] = [];
+          grouped[category].push(rule);
+        }
+        const categories = Object.entries(grouped).map(([category, items]) => ({
+          id: category,
+          category,
+          items,
+        }));
+        setKnowledgeByCategory(categories);
+        if (!selectedItem && categories.length > 0 && categories[0].items.length > 0) {
+          setSelectedItem(categories[0].items[0]);
+        }
+      } catch {
+        setKnowledgeByCategory([]);
+        setSelectedItem(null);
+      }
+    };
+    loadKnowledge();
   }, []);
 
   return (
@@ -76,7 +119,7 @@ export default function IntelligenceHub() {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-              {MOCK_KNOWLEDGE.map((cat) => (
+              {knowledgeByCategory.map((cat) => (
                 <div key={cat.id} className="mb-4">
                   <div className="px-4 py-2 flex items-center justify-between group">
                     <span className="text-[10px] font-bold text-ink-mutedOnDark uppercase tracking-[0.2em]">
@@ -91,16 +134,18 @@ export default function IntelligenceHub() {
                         onClick={() => { setSelectedItem(item); setIsEditing(false); }}
                         className={cn(
                           "w-full px-4 py-2.5 rounded-lg flex items-center gap-3 transition-all text-left group",
-                          selectedItem.id === item.id 
+                          selectedItem?.id === item.id
                             ? "bg-surface-highlight text-white border border-surface-border shadow-lg" 
                             : "text-ink-mutedOnDark hover:bg-white/[0.02]"
                         )}
                       >
                         <FileText className={cn(
                           "w-4 h-4",
-                          selectedItem.id === item.id ? "text-ai" : "text-ink-mutedOnDark/40"
+                          selectedItem?.id === item.id ? "text-ai" : "text-ink-mutedOnDark/40"
                         )} />
-                        <span className="text-sm font-medium">{item.title}</span>
+                        <span className="text-sm font-medium">
+                          {getRuleTitle(item) || 'Knowledge Rule'}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -126,9 +171,11 @@ export default function IntelligenceHub() {
             <header className="h-16 px-8 border-b border-gray-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
               <div className="flex items-center gap-4">
                 <div className="px-2 py-1 rounded bg-gray-100 text-[10px] font-bold text-ink-muted uppercase font-mono">
-                  ID: {selectedItem.id}
+                  ID: {selectedItem?.id || 'N/A'}
                 </div>
-                <h3 className="text-sm font-bold text-ink-base">{selectedItem.title}</h3>
+                <h3 className="text-sm font-bold text-ink-base">
+                  {getRuleTitle(selectedItem) || 'No knowledge selected'}
+                </h3>
               </div>
               
               <div className="flex items-center gap-3">
@@ -153,17 +200,17 @@ export default function IntelligenceHub() {
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-ink-muted uppercase tracking-widest">Source Type</span>
                     <div className="flex items-center gap-2 text-sm font-bold text-ink-base">
-                      {selectedItem.source === 'Manual' ? <Edit3 className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
-                      {selectedItem.source}
+                      {selectedItem?.source_type === 'Manual' ? <Edit3 className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                      {selectedItem?.source_type || 'N/A'}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-ink-muted uppercase tracking-widest">Last Modified</span>
-                    <span className="text-sm font-bold text-ink-base">{selectedItem.updated}</span>
+                    <span className="text-sm font-bold text-ink-base">{selectedItem?.updated_at || 'N/A'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-ink-muted uppercase tracking-widest">AI Reference Count</span>
-                    <span className="text-sm font-bold text-ai">142 hits</span>
+                  <span className="text-sm font-bold text-ai">{selectedItem?.reference_count ?? 0} hits</span>
                   </div>
                 </div>
 
@@ -173,29 +220,11 @@ export default function IntelligenceHub() {
                   isEditing ? "opacity-50 pointer-events-none" : "opacity-100"
                 )}>
                   <h2 className="text-3xl font-sans font-bold text-ink-base leading-tight">
-                    Standard Shipping & Delivery Protocols
+                    {getRuleTitle(selectedItem) || 'Knowledge Document'}
                   </h2>
-                  
-                  <p>
-                    Our brand operates on a <strong>premium concierge model</strong>. All orders processed before 2 PM EST are eligible for same-day dispatch. Standard delivery windows vary by region but generally fall within 2–5 business days.
-                  </p>
-
-                  <div className="p-6 bg-gray-50 rounded-xl border border-gray-200 font-sans">
-                    <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-ink-muted mb-4">Core Knowledge Snippets</h4>
-                    <ul className="space-y-4">
-                      <li className="flex gap-3 text-sm text-ink-base">
-                        <ArrowRight className="w-4 h-4 text-ai mt-0.5 flex-shrink-0" />
-                        <span>Domestic orders are shipped via UPS Ground by default.</span>
-                      </li>
-                      <li className="flex gap-3 text-sm text-ink-base">
-                        <ArrowRight className="w-4 h-4 text-ai mt-0.5 flex-shrink-0" />
-                        <span>International shipping is currently restricted to Canada, UK, and EU.</span>
-                      </li>
-                    </ul>
-                  </div>
 
                   <p>
-                    In the event of a logistical delay, the AI is authorized to offer a 10% "Patience Credit" if the delay exceeds 48 hours beyond the estimated delivery window.
+                    {selectedItem?.content || 'No knowledge content available yet.'}
                   </p>
                 </div>
 
@@ -205,7 +234,7 @@ export default function IntelligenceHub() {
                       <textarea 
                         autoFocus
                         className="w-full h-96 p-8 font-serif text-lg leading-relaxed border-none focus:ring-0 outline-none resize-none text-ink-base"
-                        defaultValue="Our brand operates on a premium concierge model. All orders processed before 2 PM EST are eligible for same-day dispatch..."
+                        defaultValue={selectedItem?.content || ''}
                       />
                     </div>
                   </div>

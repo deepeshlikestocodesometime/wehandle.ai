@@ -1,3 +1,29 @@
+import logging
+import os
+import sys
+
+from dotenv import load_dotenv
+
+# Load .env early so startup validation and imports see configured values.
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# Validate required env vars before importing modules that depend on them.
+required_env_vars = [
+    "DATABASE_URL",
+    "WEHANDLE_JWT_SECRET",
+    "OPENAI_API_KEY",
+    "SHOPIFY_API_KEY",
+    "SHOPIFY_API_SECRET",
+    "SHOPIFY_REDIRECT_URI",
+    "WEHANDLE_FRONTEND_URL",
+]
+missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_env_vars:
+    logger.error("Missing required environment variables: %s", ", ".join(missing_env_vars))
+    sys.exit(1)
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession

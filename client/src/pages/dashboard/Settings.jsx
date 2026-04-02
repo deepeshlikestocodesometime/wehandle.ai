@@ -37,6 +37,13 @@ export default function Settings() {
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [billingUsage, setBillingUsage] = useState({
+    ai_conversations_used: 0,
+    ai_conversations_limit: 5000,
+    knowledge_points_used: 0,
+    knowledge_points_limit: 500,
+    plan_name: null,
+  });
 
   useEffect(() => {
     const loadSecurity = async () => {
@@ -56,8 +63,29 @@ export default function Settings() {
         setTeam([]);
       }
     };
+    const loadBilling = async () => {
+      try {
+        const data = await settingsApi.getBillingUsage();
+        setBillingUsage({
+          ai_conversations_used: data?.ai_conversations_used ?? 0,
+          ai_conversations_limit: data?.ai_conversations_limit ?? 5000,
+          knowledge_points_used: data?.knowledge_points_used ?? 0,
+          knowledge_points_limit: data?.knowledge_points_limit ?? 500,
+          plan_name: data?.plan_name ?? null,
+        });
+      } catch {
+        setBillingUsage({
+          ai_conversations_used: 0,
+          ai_conversations_limit: 5000,
+          knowledge_points_used: 0,
+          knowledge_points_limit: 500,
+          plan_name: null,
+        });
+      }
+    };
     loadSecurity();
     loadTeam();
+    loadBilling();
   }, []);
 
   const handleInvite = async () => {
@@ -228,8 +256,16 @@ export default function Settings() {
 
                   {/* USAGE METERS */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <UsageMeter label="AI Conversations" current={3247} max={5000} />
-                    <UsageMeter label="Knowledge Points" current={124} max={500} />
+                    <UsageMeter
+                      label="AI Conversations"
+                      current={billingUsage.ai_conversations_used}
+                      max={billingUsage.ai_conversations_limit}
+                    />
+                    <UsageMeter
+                      label="Knowledge Points"
+                      current={billingUsage.knowledge_points_used}
+                      max={billingUsage.knowledge_points_limit}
+                    />
                   </div>
 
                   <div className="pt-6 border-t border-surface-border">
@@ -351,7 +387,9 @@ export default function Settings() {
 }
 
 function UsageMeter({ label, current, max }) {
-  const percent = (current / max) * 100;
+  const safeMax = Number(max);
+  const safeCurrent = Number(current);
+  const percent = safeMax > 0 ? (safeCurrent / safeMax) * 100 : 0;
   return (
     <div className="bg-surface border border-surface-border p-5 rounded-xl space-y-3">
       <div className="flex justify-between items-center">

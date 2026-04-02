@@ -2,7 +2,7 @@ import os
 from typing import List
 from uuid import UUID
 
-import openai
+from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -29,14 +29,14 @@ async def get_relevant_context(
     if not api_key:
         return []
 
-    openai.api_key = api_key
+    client = AsyncOpenAI(api_key=api_key)
 
     try:
-        resp = openai.Embedding.create(
+        resp = await client.embeddings.create(
             model="text-embedding-3-small",
             input=query,
         )
-        query_embedding = resp["data"][0]["embedding"]
+        query_embedding = resp.data[0].embedding
     except Exception:
         # If embeddings fail, gracefully fall back to no RAG context
         return []

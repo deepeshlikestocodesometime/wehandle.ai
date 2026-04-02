@@ -3,7 +3,7 @@ import logging
 import os
 from uuid import UUID
 
-import openai
+from openai import AsyncOpenAI
 from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -27,14 +27,14 @@ async def _embed_chunk(chunk_id: UUID) -> None:
       logger.warning("OPENAI_API_KEY not configured; skipping embedding for chunk %s", chunk_id)
       return
 
-    openai.api_key = api_key
+    client = AsyncOpenAI(api_key=api_key)
 
     try:
-      resp = openai.Embedding.create(
+      resp = await client.embeddings.create(
         model="text-embedding-3-small",
         input=chunk.content,
       )
-      embedding = resp["data"][0]["embedding"]
+      embedding = resp.data[0].embedding
     except Exception as exc:  # pragma: no cover - network I/O
       logger.exception("Failed to generate embedding for chunk %s: %s", chunk_id, exc)
       return

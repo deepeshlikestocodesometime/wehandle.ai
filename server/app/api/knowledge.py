@@ -1,3 +1,6 @@
+import logging
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -9,9 +12,33 @@ from app.models.merchant import User
 from app.models.ai import KnowledgeChunk
 from app.api.deps import get_current_user
 from app.schemas.knowledge import KnowledgeCreate, KnowledgeUpdate, KnowledgeResponse
-from app.workers.knowledge_workers import process_document_task
+from app.workers.knowledge_workers import process_document_task, _embed_chunk
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+OPENAI_DISABLED_MESSAGE = "OpenAI Key missing. Ingestion and Preview disabled."
+
+
+def _should_use_celery() -> bool:
+    """
+    Keep local/server setup simple by default.
+    Set USE_CELERY=true to enable background queue processing later.
+    """
+    return os.getenv("USE_CELERY", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+async def _process_embedding(chunk_id: UUID) -> None:
+    """
+    Default path: inline embedding to avoid Redis/Celery dependency.
+    Optional path: Celery task when USE_CELERY=true.
+    """
+    if _should_use_celery():
+        try:
+            process_document_task.delay(str(chunk_id))
+            return
+        except Exception:
+            logger.exception("Celery enqueue failed for chunk %s; falling back to inline embedding.", chunk_id)
+    await _embed_chunk(chunk_id)
 
 @router.get("", response_model=List[KnowledgeResponse])
 async def get_knowledge_base(
@@ -34,6 +61,9 @@ async def add_knowledge(
     current_user: User = Depends(get_current_user)
 ):
     """Adds a new manual rule. (Files/Scraping will use background workers)."""
+    if not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(status_code=400, detail=OPENAI_DISABLED_MESSAGE)
+
     # 1536 is the dimension size for text-embedding-3-small. 
     # We use a dummy vector until the OpenAI worker is attached.
     dummy_vector = [0.0] * 1536 
@@ -49,8 +79,7 @@ async def add_knowledge(
     await db.commit()
     await db.refresh(new_chunk)
 
-    # Trigger embedding in the background
-    process_document_task.delay(str(new_chunk.id))
+    await _process_embedding(new_chunk.id)
     return new_chunk
 
 
@@ -64,6 +93,9 @@ async def upload_knowledge_file(
     Handles PDF/text file uploads from Step 2 (Knowledge Ingestion).
     Extracts raw text and enqueues an embedding task.
     """
+    if not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(status_code=400, detail=OPENAI_DISABLED_MESSAGE)
+
     raw_bytes = await file.read()
     try:
         text = raw_bytes.decode("utf-8", errors="ignore")
@@ -86,7 +118,7 @@ async def upload_knowledge_file(
     await db.commit()
     await db.refresh(new_chunk)
 
-    process_document_task.delay(str(new_chunk.id))
+    await _process_embedding(new_chunk.id)
     return new_chunk
 
 

@@ -10,18 +10,42 @@ export default function Step3BrandVoice() {
   const navigate = useNavigate();
   const [tone, setTone] = useState('friendly');
   const [emoji, setEmoji] = useState('moderate');
+  const [previewQuery] = useState("Where is my order? It's been 5 days!");
   const [isTyping, setIsTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewReply, setPreviewReply] = useState('');
+  const [cognitiveFlow, setCognitiveFlow] = useState(['Searching Knowledge Base', 'Applying Tone']);
   const [error, setError] = useState('');
+  const OPENAI_DISABLED_MESSAGE = 'OpenAI Key missing. Ingestion and Preview disabled.';
 
-  const refreshPreview = () => {
+  const refreshPreview = async () => {
     setIsTyping(true);
-    setTimeout(() => setIsTyping(false), 1200);
+    setIsPreviewLoading(true);
+    setError('');
+    try {
+      const data = await onboardingApi.previewPersona(previewQuery, tone, emoji);
+      setPreviewReply(data?.reply || '');
+      setCognitiveFlow(data?.cognitive_flow || ['Searching Knowledge Base', 'Applying Tone']);
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      if (typeof detail === 'string' && detail.includes('OpenAI Key missing')) {
+        setError(OPENAI_DISABLED_MESSAGE);
+      } else {
+        setError(typeof detail === 'string' ? detail : 'Unable to regenerate preview.');
+      }
+      setPreviewReply('');
+      setCognitiveFlow(['Searching Knowledge Base', 'Applying Tone']);
+    } finally {
+      setIsPreviewLoading(false);
+      setTimeout(() => setIsTyping(false), 500);
+    }
   };
 
   const getResponse = () => {
+    if (previewReply) return previewReply;
     if (tone === 'formal') return "Your order #8821 is currently in transit. The estimated delivery date is tomorrow. Thank you for your patience.";
-    if (tone === 'friendly') return "Great news! 🎉 Your order #8821 is on its way and should be there by tomorrow! Let me know if you need anything else.";
+    if (tone === 'friendly') return "Great news! Your order #8821 is on its way and should be there by tomorrow! Let me know if you need anything else.";
     return "Order #8821 is shipped. Expect it tomorrow.";
   };
 
@@ -36,7 +60,7 @@ export default function Step3BrandVoice() {
         localStorage.setItem('onboarding_step', String(data.onboarding_step));
       }
 
-      navigate('/step-4');
+      navigate('/dashboard');
     } catch (err) {
       console.error('Error saving persona:', err?.response?.data || err);
       const detail = err?.response?.data?.detail;
@@ -67,7 +91,10 @@ export default function Step3BrandVoice() {
               {['formal', 'neutral', 'friendly'].map((t) => (
                 <button
                   key={t}
-                  onClick={() => { setTone(t); refreshPreview(); }}
+                  onClick={() => {
+                    setTone(t);
+                    refreshPreview();
+                  }}
                   className={cn(
                     "py-2 px-3 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all",
                     tone === t 
@@ -87,7 +114,10 @@ export default function Step3BrandVoice() {
               {['none', 'moderate', 'always'].map((e) => (
                 <button
                   key={e}
-                  onClick={() => { setEmoji(e); refreshPreview(); }}
+                  onClick={() => {
+                    setEmoji(e);
+                    refreshPreview();
+                  }}
                   className={cn(
                     "flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all",
                     emoji === e 
@@ -115,7 +145,7 @@ export default function Step3BrandVoice() {
                 onClick={handleSavePersona}
                 className="bg-white text-surface hover:bg-gray-200"
                 isLoading={isLoading}
-                disabled={isLoading}
+                disabled={isLoading || isPreviewLoading}
               >
               Save Persona <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -138,7 +168,7 @@ export default function Step3BrandVoice() {
             {/* User Message */}
             <div className="flex justify-end">
               <div className="bg-ai text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm max-w-[85%] shadow-glow">
-                Where is my order? It's been 5 days!
+                {previewQuery}
               </div>
             </div>
 
@@ -163,12 +193,23 @@ export default function Step3BrandVoice() {
           </div>
 
           <div className="mt-auto pt-4 flex justify-center">
-             <button 
+             <button
                onClick={refreshPreview}
+               disabled={isPreviewLoading}
                className="flex items-center gap-1 text-[10px] font-bold text-ink-mutedOnDark uppercase tracking-widest hover:text-ai transition-colors"
              >
                <RefreshCw className="w-3 h-3" /> Regenerate Preview
              </button>
+          </div>
+          <div className="mt-3 p-3 bg-surface border border-surface-border rounded-lg">
+            <p className="text-[10px] font-bold text-white uppercase tracking-widest mb-2">Cognitive Flow</p>
+            <ul className="space-y-1">
+              {cognitiveFlow.map((step) => (
+                <li key={step} className="text-[10px] text-ink-mutedOnDark">
+                  {step}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>

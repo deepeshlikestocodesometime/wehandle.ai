@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -7,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models.merchant import Merchant
+
+logger = logging.getLogger(__name__)
 
 
 class ShopifyBridge:
@@ -32,7 +35,7 @@ class ShopifyBridge:
         query: str,
         variables: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        endpoint = merchant.shopify_shop_url.rstrip("/") + "/admin/api/2023-10/graphql.json"
+        endpoint = merchant.shopify_shop_url.rstrip("/") + "/admin/api/2026-01/graphql.json"
         headers = {
             "X-Shopify-Access-Token": merchant.shopify_access_token,
             "Content-Type": "application/json",
@@ -61,12 +64,14 @@ class ShopifyBridge:
         - Refund / return history
         - Customer lifetime data (total spent, tags, note)
         """
+        print(f"DEBUG: Starting Shopify search for {email}")
         merchant = await self._get_merchant(merchant_id)
+        normalized_email = (email or "").strip().lower()
 
         # GraphQL query for customer + last 5 orders
         query = """
-        query CustomerContext($email: String!, $limit: Int!) {
-          customers(first: 1, query: $email) {
+        query CustomerContext($emailQuery: String!, $limit: Int!) {
+          customers(first: 1, query: $emailQuery) {
             edges {
               node {
                 id
@@ -75,14 +80,19 @@ class ShopifyBridge:
                 tags
                 note
                 lifetimeDuration
+                numberOfOrders
+                amountSpent {
+                  amount
+                  currencyCode
+                }
                 orders(first: $limit, sortKey: PROCESSED_AT, reverse: true) {
                   edges {
                     node {
                       id
                       name
                       processedAt
-                      financialStatus
-                      fulfillmentStatus
+                      displayFinancialStatus
+                      displayFulfillmentStatus
                       totalPriceSet {
                         shopMoney {
                           amount
@@ -112,7 +122,7 @@ class ShopifyBridge:
                       }
                       refunds(first: 5) {
                         createdAt
-                        totalSet {
+                        totalRefundedSet {
                           shopMoney {
                             amount
                             currencyCode
@@ -127,12 +137,15 @@ class ShopifyBridge:
           }
         }
         """
+        search_query = f"email:{normalized_email}"
 
         data = await self._graphql(
             merchant,
             query,
-            variables={"email": email, "limit": 5},
+            variables={"emailQuery": search_query, "limit": 5},
         )
+        print(f"DEBUG: Shopify Raw Response: {data}")
+        logger.info("Shopify customer context raw response: %s", data)
 
         if "error" in data:
             # Bubble up structured error for the AI layer to reason about
@@ -146,7 +159,30 @@ class ShopifyBridge:
         customer_node = customers[0]["node"]
 
         orders_edges: List[Dict[str, Any]] = customer_node.get("orders", {}).get("edges", [])
-        orders = [edge["node"] for edge in orders_edges]
+        orders: List[Dict[str, Any]] = []
+        for edge in orders_edges:
+            node = edge.get("node", {})
+            total_price_set = node.get("totalPriceSet", {}).get("shopMoney", {}) or {}
+            refunds = node.get("refunds", []) or []
+            normalized_refunds: List[Dict[str, Any]] = []
+            for refund in refunds:
+                normalized_refunds.append(
+                    {
+                        "createdAt": refund.get("createdAt"),
+                        "totalRefundedSet": refund.get("totalRefundedSet", {}).get("shopMoney", {}),
+                    }
+                )
+
+            orders.append(
+                {
+                    **node,
+                    "financialStatus": node.get("displayFinancialStatus"),
+                    "fulfillmentStatus": node.get("displayFulfillmentStatus"),
+                    "order_total": total_price_set.get("amount"),
+                    "order_currency": total_price_set.get("currencyCode"),
+                    "refunds": normalized_refunds,
+                }
+            )
 
         context: Dict[str, Any] = {
           "customer_found": True,
@@ -155,6 +191,8 @@ class ShopifyBridge:
             "email": customer_node.get("email"),
             "tags": customer_node.get("tags", []),
             "note": customer_node.get("note"),
+            "total_spent": customer_node.get("amountSpent", {}),
+            "order_count": customer_node.get("numberOfOrders", 0),
           },
           "orders": orders,
         }

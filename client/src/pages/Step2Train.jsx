@@ -1,40 +1,86 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, Globe, FileText, CheckCircle2, X, ArrowRight, Brain, ArrowLeft } from 'lucide-react';
 import OnboardingLayout from '../components/layout/OnboardingLayout';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
-import { onboardingApi } from '../lib/api';
+import { knowledgeApi, onboardingApi } from '../lib/api';
 
 export default function Step2Brain() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('upload');
   const [files, setFiles] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [url, setUrl] = useState('');
+  const [manualText, setManualText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isIngesting, setIsIngesting] = useState(false);
   const [error, setError] = useState('');
+  const OPENAI_DISABLED_MESSAGE = 'OpenAI Key missing. Ingestion and Preview disabled.';
 
-  const handleFileUpload = (e) => {
-    const newFiles = Array.from(e.target.files).map(file => ({
+  const loadDocuments = async () => {
+    const docs = await knowledgeApi.getRules();
+    setDocuments(docs || []);
+  };
+
+  useEffect(() => {
+    loadDocuments().catch((err) => {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Unable to load documents.');
+    });
+  }, []);
+
+  const handleFileUpload = async (e) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
+    setError('');
+    const newFiles = selectedFiles.map((file) => ({
       name: file.name,
       progress: 0,
       status: 'uploading'
     }));
     setFiles([...files, ...newFiles]);
+    setIsIngesting(true);
 
-    newFiles.forEach((_, index) => {
-      let p = 0;
-      const interval = setInterval(() => {
-        p += 5;
-        if (p >= 100) {
-          p = 100;
-          clearInterval(interval);
-          setFiles(prev => prev.map((f, i) => i === (prev.length - newFiles.length + index) ? { ...f, progress: 100 } : f));
-        } else {
-          setFiles(prev => prev.map((f, i) => i === (prev.length - newFiles.length + index) ? { ...f, progress: p } : f));
-        }
-      }, 100);
-    });
+    try {
+      for (let index = 0; index < selectedFiles.length; index += 1) {
+        const file = selectedFiles[index];
+        await knowledgeApi.uploadFile(file);
+        setFiles((prev) =>
+          prev.map((f, i) =>
+            i === (prev.length - newFiles.length + index) ? { ...f, progress: 100, status: 'done' } : f
+          )
+        );
+      }
+      await loadDocuments();
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Unable to upload file(s).');
+      if (typeof detail === 'string' && detail.includes('OpenAI Key missing')) {
+        setError(OPENAI_DISABLED_MESSAGE);
+      }
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  const handleManualSave = async () => {
+    if (!manualText.trim()) return;
+    setError('');
+    setIsIngesting(true);
+    try {
+      await knowledgeApi.addRule(`Manual Entry ${new Date().toLocaleString()}`, manualText.trim());
+      setManualText('');
+      await loadDocuments();
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Unable to save manual entry.');
+      if (typeof detail === 'string' && detail.includes('OpenAI Key missing')) {
+        setError(OPENAI_DISABLED_MESSAGE);
+      }
+    } finally {
+      setIsIngesting(false);
+    }
   };
 
   const handleNext = async () => {
@@ -106,7 +152,9 @@ export default function Step2Brain() {
                   <UploadCloud className="w-6 h-6 text-ink-mutedOnDark group-hover:text-ai" />
                 </div>
                 <span className="text-sm font-bold text-ink-onDark">Click to upload documents</span>
-                <span className="text-xs text-ink-mutedOnDark mt-1">PDF, DOCX, TXT (Max 10MB)</span>
+                <span className="text-xs text-ink-mutedOnDark mt-1">
+                  {isIngesting ? 'Processing embeddings inline...' : 'PDF, DOCX, TXT (Max 10MB)'}
+                </span>
               </label>
 
               <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
@@ -132,6 +180,16 @@ export default function Step2Brain() {
                   </div>
                 ))}
               </div>
+              {documents.length > 0 && (
+                <div className="p-3 bg-surface-highlight rounded-lg border border-surface-border">
+                  <p className="text-xs font-bold text-ink-onDark mb-2">Documents Ready</p>
+                  <ul className="text-xs text-ink-mutedOnDark space-y-1 max-h-[100px] overflow-y-auto custom-scrollbar">
+                    {documents.map((doc) => (
+                      <li key={doc.id}>{doc.source_name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
@@ -159,7 +217,17 @@ export default function Step2Brain() {
                <textarea 
                 className="input-dark w-full h-48 p-4 font-sans resize-none"
                 placeholder="Q: What is your return policy?&#10;A: We offer 30-day returns..."
+                value={manualText}
+                onChange={(e) => setManualText(e.target.value)}
                />
+               <Button
+                 onClick={handleManualSave}
+                 className="bg-surface-highlight border border-surface-border text-white hover:bg-surface-border"
+                 isLoading={isIngesting}
+                 disabled={isIngesting || !manualText.trim()}
+               >
+                 Save Entry
+               </Button>
              </div>
           )}
         </div>
@@ -170,7 +238,7 @@ export default function Step2Brain() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-4">
-            <span className="text-xs text-ink-mutedOnDark hidden md:block">{files.length} documents ready</span>
+            <span className="text-xs text-ink-mutedOnDark hidden md:block">{documents.length} documents ready</span>
             {error && (
               <span className="text-[10px] font-bold text-error uppercase tracking-widest">
                 {error}
@@ -180,7 +248,7 @@ export default function Step2Brain() {
               onClick={handleNext}
               className="bg-white text-surface hover:bg-gray-200"
               isLoading={isLoading}
-              disabled={isLoading}
+              disabled={isLoading || isIngesting || documents.length === 0}
             >
               Next Step <ArrowRight className="ml-2 h-4 w-4" />
             </Button>

@@ -22,6 +22,7 @@ class TicketUpdate(BaseModel):
 
 class TicketResponse(BaseModel):
     id: UUID
+    merchant_id: UUID
     customer_email: str
     customer_name: Optional[str] = None
     shopify_order_id: Optional[str] = None

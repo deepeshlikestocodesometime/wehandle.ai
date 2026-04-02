@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.websocket_manager import manager
@@ -104,11 +105,12 @@ async def inbound_email_webhook(
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found for inbound email")
 
-    from_addr = _parse_address(from_email)
+    from_addr = _parse_address(from_email).lower()
 
     # Find existing open ticket for this customer, if any
     result = await db.execute(
         select(Ticket)
+        .options(selectinload(Ticket.messages))
         .where(
             Ticket.merchant_id == merchant.id,
             Ticket.customer_email == from_addr,
@@ -139,6 +141,8 @@ async def inbound_email_webhook(
             {
                 "type": "ticket.created",
                 "ticketId": str(ticket.id),
+                "status": ticket.status,
+                "channel": ticket.channel.value if getattr(ticket, "channel", None) else None,
                 "customer_email": ticket.customer_email,
                 "customer_name": ticket.customer_name,
                 "intent": ticket.intent,
@@ -154,6 +158,7 @@ async def inbound_email_webhook(
     db.add(new_message)
     await db.commit()
     await db.refresh(new_message)
+    await db.refresh(ticket, ["messages"])
 
     # Trigger AI auto-reply pipeline
     await generate_omnichannel_reply(ticket.id, db)
@@ -234,6 +239,7 @@ async def _handle_meta_message(db: AsyncSession, sender_id: str, text: str, chan
     # Reuse sender_id as customer_email surrogate for IG/WA
     result = await db.execute(
         select(Ticket)
+        .options(selectinload(Ticket.messages))
         .where(
             Ticket.merchant_id == merchant.id,
             Ticket.customer_email == sender_id,
@@ -275,6 +281,7 @@ async def _handle_meta_message(db: AsyncSession, sender_id: str, text: str, chan
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
+    await db.refresh(ticket, ["messages"])
 
     await generate_omnichannel_reply(ticket.id, db)
 

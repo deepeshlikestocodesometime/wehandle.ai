@@ -5,8 +5,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
-import openai
+from openai import AsyncOpenAI
 
 from app.models.merchant import Merchant
 from app.models.ticket import Ticket, Message
@@ -67,7 +68,11 @@ async def generate_omnichannel_reply(ticket_id: UUID, db: AsyncSession) -> Messa
     an omnichannel reply, then persists and dispatches it via the proper channel.
     """
     # 1. Load ticket + merchant context
-    ticket_result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket_result = await db.execute(
+        select(Ticket)
+        .options(selectinload(Ticket.messages))
+        .where(Ticket.id == ticket_id)
+    )
     ticket = ticket_result.scalar_one_or_none()
     if not ticket:
         raise ValueError("Ticket not found")
@@ -80,6 +85,8 @@ async def generate_omnichannel_reply(ticket_id: UUID, db: AsyncSession) -> Messa
     # 2. Shopify context
     shopify_bridge = ShopifyBridge(db)
     shopify_context = await shopify_bridge.get_customer_context(ticket.customer_email, merchant.id)
+    print(f"DEBUG: AI Service received context: {shopify_context}")
+    customer_found = bool((shopify_context or {}).get("customer_found"))
 
     # 3. Knowledge rules via RAG retriever
 
@@ -141,16 +148,16 @@ async def generate_omnichannel_reply(ticket_id: UUID, db: AsyncSession) -> Messa
         )
         confidence = 0.0
     else:
-        openai.api_key = api_key
+        client = AsyncOpenAI(api_key=api_key)
         try:
-            completion = await openai.ChatCompletion.acreate(
+            completion = await client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
             )
-            raw_content = completion.choices[0].message["content"]
+            raw_content = completion.choices[0].message.content or ""
             try:
                 data = json.loads(raw_content)
                 ai_reply = data.get("answer", raw_content)
@@ -167,7 +174,15 @@ async def generate_omnichannel_reply(ticket_id: UUID, db: AsyncSession) -> Messa
             confidence = 0.0
 
     # 6. Persist AI message with cognitive logs
+    cognitive_steps = [
+        "Searching knowledge base for policy matches...",
+        "Connecting to Shopify Admin API...",
+        f"Shopify Context: {'Customer profile hydrated' if customer_found else 'No customer record found'}",
+        f"Persona applied: {tone} tone with {emoji_density} emoji density.",
+    ]
+
     cognitive_logs: Dict[str, Any] = {
+        "flow_steps": cognitive_steps,
         "shopify_context": shopify_context,
         "rules_used_count": len(kb_rules),
         "tone": tone,

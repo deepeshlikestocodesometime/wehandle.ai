@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL;
+if (!API_URL) {
+  throw new Error('VITE_API_URL environment variable is required');
+}
 
 // Create a configured Axios instance
 export const api = axios.create({
@@ -73,6 +76,14 @@ export const onboardingApi = {
     });
     return response.data;
   },
+  previewPersona: async (query = "What is your return policy?", tone = null, emojiDensity = null) => {
+    const response = await api.post('/onboarding/step3/preview', {
+      query,
+      tone_of_voice: tone,
+      emoji_density: emojiDensity,
+    });
+    return response.data;
+  },
   deploy: async () => {
     const response = await api.post('/onboarding/step4/deploy');
     return response.data;
@@ -110,6 +121,14 @@ export const inboxApi = {
 export const knowledgeApi = {
   getRules: async () => {
     const response = await api.get('/knowledge');
+    return response.data;
+  },
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/knowledge/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   },
   addRule: async (sourceName, content) => {
@@ -151,6 +170,10 @@ export const settingsApi = {
   },
   rotateApiKey: async () => {
     const response = await api.post('/settings/api-key/rotate');
+    return response.data;
+  },
+  getBillingUsage: async () => {
+    const response = await api.get('/settings/billing/usage');
     return response.data;
   },
 };

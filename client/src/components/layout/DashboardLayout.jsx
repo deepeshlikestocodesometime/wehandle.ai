@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LayoutDashboard, MessageSquare, BookOpen, Settings, LogOut, Bell, Search, Sparkles } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { authApi } from '../../lib/api';
 
 const navigation = [
   { name: 'The Pulse', href: '/dashboard', icon: LayoutDashboard },
@@ -12,6 +13,24 @@ const navigation = [
 
 export default function DashboardLayout({ children }) {
   const location = useLocation();
+  const [storeName, setStoreName] = useState('WeHandle.ai');
+
+  useEffect(() => {
+    let mounted = true;
+    const loadMe = async () => {
+      try {
+        const me = await authApi.getMe();
+        const name = me?.merchant?.name;
+        if (mounted && name) setStoreName(name);
+      } catch {
+        // keep default
+      }
+    };
+    loadMe();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-canvas flex font-sans">
@@ -21,7 +40,7 @@ export default function DashboardLayout({ children }) {
           <div className="w-9 h-9 bg-ai rounded-lg flex items-center justify-center text-white shadow-glow">
             <Sparkles className="w-5 h-5" />
           </div>
-          <span className="ml-3 font-bold text-lg tracking-tight text-white">WeHandle.ai</span>
+          <span className="ml-3 font-bold text-lg tracking-tight text-white">{storeName}</span>
         </div>
 
         <nav className="flex-1 px-4 py-8 space-y-1">

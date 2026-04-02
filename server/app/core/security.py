@@ -1,11 +1,17 @@
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+from dotenv import load_dotenv
 from jose import jwt
 from passlib.context import CryptContext
 
+load_dotenv()
+
 # --- CONFIGURATION ---
-# Note: In production, this SECRET_KEY must be a random string stored in a .env file!
-SECRET_KEY = "wehandle_platinum_intelligence_super_secret_key_v1"
+SECRET_KEY = os.getenv("WEHANDLE_JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("WEHANDLE_JWT_SECRET environment variable is required")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # Keep merchants logged in for 7 days
 

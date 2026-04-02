@@ -8,7 +8,6 @@ const steps = [
   { id: 1, name: 'Connect Store' },
   { id: 2, name: 'Knowledge Ingestion' },
   { id: 3, name: 'Identity Studio' },
-  { id: 4, name: 'Deployment' },
 ];
 
 export default function OnboardingLayout({ currentStep, children }) {
@@ -35,7 +34,6 @@ export default function OnboardingLayout({ currentStep, children }) {
           1: '/step-1',
           2: '/step-2',
           3: '/step-3',
-          4: '/step-4',
         };
 
         const targetPath = stepPathMap[step];
@@ -75,12 +73,12 @@ export default function OnboardingLayout({ currentStep, children }) {
         </div>
         <div className="flex items-center gap-2">
            <span className="text-xs font-mono font-bold text-ink-muted uppercase tracking-widest">
-             Setup: Step {currentStep}/4
+             Setup: Step {currentStep}/3
            </span>
            <div className="w-32 h-1 bg-gray-200 rounded-full overflow-hidden">
              <div 
                 className="h-full bg-surface transition-all duration-700" 
-                style={{ width: `${(currentStep/4)*100}%` }}
+                style={{ width: `${(currentStep/3)*100}%` }}
              />
            </div>
         </div>

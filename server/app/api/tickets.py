@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -13,6 +15,7 @@ from app.api.deps import get_current_user
 from app.schemas.ticket import TicketResponse, TicketWithMessagesResponse, MessageCreate, MessageResponse, TicketUpdate
 from app.services.ai_service import generate_omnichannel_reply
 from app.services.shopify_service import ShopifyBridge
+from app.services.message_router import dispatch_response
 
 router = APIRouter()
 
@@ -69,11 +72,22 @@ async def get_ticket_context(
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     bridge = ShopifyBridge(db)
-    context = await bridge.get_customer_context(ticket.customer_email, current_user.merchant_id)
+    context = None
+    shopify_synced = True
+    context_error = None
+    try:
+        context = await bridge.get_customer_context(ticket.customer_email, current_user.merchant_id)
+    except ValueError as exc:
+        # Shopify token/store may not be configured yet.
+        shopify_synced = False
+        context_error = str(exc)
+        context = None
 
     return {
         "shopify_context": context,
-        "shopify_shop_url": current_user.merchant.merchant.shopify_shop_url if hasattr(current_user, "merchant") else None,
+        "shopify_shop_url": current_user.merchant.shopify_shop_url if getattr(current_user, "merchant", None) else None,
+        "shopify_synced": shopify_synced,
+        "shopify_error": context_error,
     }
 
 
@@ -91,6 +105,11 @@ async def send_manual_reply(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+
+    channel_value = getattr(ticket.channel, "value", str(ticket.channel))
+    if channel_value == "EMAIL":
+        if not os.getenv("SMTP_HOST") or not os.getenv("SMTP_FROM_EMAIL"):
+            raise HTTPException(status_code=400, detail="SMTP not configured")
         
     new_message = Message(
         ticket_id=ticket.id,
@@ -104,6 +123,13 @@ async def send_manual_reply(
     db.add(new_message)
     await db.commit()
     await db.refresh(new_message)
+
+    # Attempt real outbound transport (SMTP/Widget/Meta) using channel bridge.
+    try:
+        await dispatch_response(db, ticket, new_message.content)
+    except Exception:
+        # Keep UI responsive even if transport is unavailable; message is still persisted.
+        pass
 
     # Broadcast update to any live dashboards / inbox clients
     await manager.broadcast_ticket_update(

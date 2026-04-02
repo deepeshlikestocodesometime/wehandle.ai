@@ -25,6 +25,36 @@ export default function Inbox() {
   const [message, setMessage] = useState('');
   const [shopifyContext, setShopifyContext] = useState(null);
   const [shopifyUrl, setShopifyUrl] = useState('');
+  const [shopifyError, setShopifyError] = useState('');
+  const [shopifySynced, setShopifySynced] = useState(true);
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [replyError, setReplyError] = useState('');
+
+  const renderAiContent = (content) => {
+    if (!content) return '';
+    let cleaned = String(content).trim();
+
+    if (cleaned.startsWith('```')) {
+      const lines = cleaned.split('\n');
+      if (lines.length >= 3 && lines[lines.length - 1].startsWith('```')) {
+        cleaned = lines.slice(1, -1).join('\n').trim();
+        if (cleaned.toLowerCase().startsWith('json')) {
+          cleaned = cleaned.slice(4).trim();
+        }
+      }
+    }
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (parsed && typeof parsed === 'object' && typeof parsed.answer === 'string') {
+        return parsed.answer;
+      }
+    } catch {
+      // fall back to raw text
+    }
+
+    return cleaned;
+  };
 
   useEffect(() => {
     const loadTickets = async () => {
@@ -54,8 +84,16 @@ export default function Inbox() {
         const ctx = await inboxApi.getContext(activeTicket.id);
         setShopifyContext(ctx.shopify_context || null);
         setShopifyUrl(ctx.shopify_shop_url || '');
+        setShopifySynced(ctx?.shopify_synced !== false);
+        if (ctx?.shopify_synced === false) {
+          setShopifyError('Shopify not synced');
+        } else {
+          setShopifyError('');
+        }
       } catch {
         setShopifyContext(null);
+        setShopifySynced(false);
+        setShopifyError('Shopify not synced');
       }
     };
     loadContext();
@@ -63,8 +101,13 @@ export default function Inbox() {
 
   useEffect(() => {
     if (!activeTicket) return;
+    const merchantId = activeTicket.merchant_id;
+    if (!merchantId) return;
 
-    const url = `ws://localhost:8000/api/v1/inbox/ws/${activeTicket.merchant_id || ''}`;
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsHost = window.location.hostname;
+    const wsPort = '8000';
+    const url = `${wsProtocol}://${wsHost}:${wsPort}/api/v1/inbox/ws/${merchantId}`;
     const socket = new WebSocket(url);
 
     socket.onmessage = (event) => {
@@ -72,6 +115,22 @@ export default function Inbox() {
         const payload = JSON.parse(event.data);
         if (payload.type === 'message.new' && payload.ticketId === activeTicket.id) {
           setMessages((prev) => [...prev, payload.message]);
+        }
+        if (payload.type === 'ticket.created') {
+          setTickets((prev) => {
+            const exists = prev.some((t) => t.id === payload.ticketId);
+            if (exists) return prev;
+            const nextTicket = {
+              id: payload.ticketId,
+              merchant_id: merchantId,
+              customer_email: payload.customer_email,
+              customer_name: payload.customer_name,
+              intent: payload.intent,
+              status: payload.status || 'AUTOPILOT',
+              channel: payload.channel || 'EMAIL',
+            };
+            return [nextTicket, ...prev];
+          });
         }
       } catch {
         // ignore malformed messages
@@ -82,6 +141,33 @@ export default function Inbox() {
       socket.close();
     };
   }, [activeTicket?.id]);
+
+  const handleSendReply = async () => {
+    if (!activeTicket || !message.trim() || isAutopilot) return;
+    setIsSendingReply(true);
+    setReplyError('');
+    try {
+      const sent = await inboxApi.sendReply(activeTicket.id, message.trim());
+      setMessages((prev) => [...prev, sent]);
+      setMessage('');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setReplyError(typeof detail === 'string' ? detail : 'Unable to send reply');
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  const lastOrder = shopifyContext?.orders?.[0] || null;
+  const customerFound = shopifyContext?.customer_found === true;
+  const totalSpentAmount = shopifyContext?.customer?.total_spent?.amount;
+  const totalSpentCurrency = shopifyContext?.customer?.total_spent?.currencyCode;
+  const orderCount = shopifyContext?.customer?.order_count ?? shopifyContext?.orders?.length ?? 0;
+  const totalSpentValue = Number(totalSpentAmount);
+  const formattedTotalSpent = Number.isFinite(totalSpentValue)
+    ? `$${totalSpentValue.toFixed(2)}${totalSpentCurrency ? ` ${totalSpentCurrency}` : ''}`
+    : null;
+  const lastOrderItems = (lastOrder?.lineItems?.edges || []).map((edge) => edge?.node).filter(Boolean);
 
   return (
     <DashboardLayout>
@@ -213,8 +299,12 @@ export default function Inbox() {
                         </span>
                       </div>
                     )}
-                    <p className="text-sm leading-relaxed text-ink-base">
-                      {m.content}
+                    <p
+                      className={`text-sm leading-relaxed ${
+                        m.sender_type === 'AI' ? 'text-white' : 'text-ink-base'
+                      }`}
+                    >
+                      {m.sender_type === 'AI' ? renderAiContent(m.content) : m.content}
                     </p>
                   </div>
                 </div>
@@ -223,6 +313,9 @@ export default function Inbox() {
 
             {/* Input Footer */}
             <footer className="p-4 bg-white border-t border-gray-200">
+              {replyError && (
+                <p className="mb-2 text-[10px] font-bold text-error uppercase tracking-widest">{replyError}</p>
+              )}
               <div className="relative group">
                 <textarea 
                   value={message}
@@ -237,7 +330,11 @@ export default function Inbox() {
                   )}
                 />
                 {!isAutopilot && (
-                  <button className="absolute bottom-4 right-4 w-10 h-10 bg-ai text-white rounded-lg flex items-center justify-center shadow-glow hover:bg-ai-hover transition-all">
+                  <button
+                    onClick={handleSendReply}
+                    disabled={isSendingReply || !message.trim()}
+                    className="absolute bottom-4 right-4 w-10 h-10 bg-ai text-white rounded-lg flex items-center justify-center shadow-glow hover:bg-ai-hover transition-all disabled:opacity-50"
+                  >
                     <Send className="w-4 h-4" />
                   </button>
                 )}
@@ -272,14 +369,17 @@ export default function Inbox() {
                   <div className="p-3 bg-surface rounded-lg border border-surface-border">
                     <p className="text-[10px] font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1">Total Spent</p>
                     <p className="text-sm font-mono text-white">
-                      {/* Placeholder until lifetime metrics are wired */}
-                      {shopifyContext ? '—' : '$0.00'}
+                      {formattedTotalSpent
+                        ? formattedTotalSpent
+                        : shopifySynced
+                          ? (customerFound ? '$0.00' : 'Customer not in Shopify')
+                          : 'Shopify not synced'}
                     </p>
                   </div>
                   <div className="p-3 bg-surface rounded-lg border border-surface-border">
                     <p className="text-[10px] font-bold text-ink-mutedOnDark uppercase tracking-widest mb-1">Orders</p>
                     <p className="text-sm font-mono text-white">
-                      {shopifyContext?.orders?.length ?? 0}
+                      {orderCount}
                     </p>
                   </div>
                 </div>
@@ -300,7 +400,9 @@ export default function Inbox() {
                     </p>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-ai/10 text-ai border border-ai/20">
-                    {shopifyContext?.orders?.[0]?.fulfillmentStatus || '—'}
+                    {shopifySynced
+                      ? (customerFound ? (lastOrder?.fulfillmentStatus || 'SYNCED') : 'CUSTOMER NOT FOUND')
+                      : 'SHOPIFY NOT SYNCED'}
                   </span>
                 </div>
 
@@ -308,8 +410,8 @@ export default function Inbox() {
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-ink-mutedOnDark">Subtotal</span>
                     <span className="text-white font-mono">
-                      {shopifyContext?.orders?.[0]?.totalPriceSet?.shopMoney?.amount
-                        ? `$${shopifyContext.orders[0].totalPriceSet.shopMoney.amount}`
+                      {lastOrder?.totalPriceSet?.shopMoney?.amount
+                        ? `$${lastOrder.totalPriceSet.shopMoney.amount}`
                         : '$0.00'}
                     </span>
                   </div>
@@ -319,9 +421,31 @@ export default function Inbox() {
                   </div>
                   <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-surface-border">
                     <span className="text-white">Total</span>
-                    <span className="text-ai font-mono">$89.00</span>
+                    <span className="text-ai font-mono">
+                      {lastOrder?.totalPriceSet?.shopMoney?.amount
+                        ? `$${lastOrder.totalPriceSet.shopMoney.amount}`
+                        : '$0.00'}
+                    </span>
                   </div>
                 </div>
+
+                {lastOrderItems.length > 0 && (
+                  <div className="pt-3 border-t border-surface-border">
+                    <p className="text-[10px] font-bold text-ink-mutedOnDark uppercase tracking-widest mb-2">Last Order Items</p>
+                    <ul className="space-y-1">
+                      {lastOrderItems.slice(0, 5).map((item, idx) => (
+                        <li key={`${item?.name || 'item'}-${idx}`} className="text-xs text-white flex justify-between gap-2">
+                          <span className="truncate">{item?.name}</span>
+                          <span className="font-mono text-ink-mutedOnDark">x{item?.quantity || 1}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {shopifyError && (
+                  <p className="text-[10px] text-error uppercase tracking-widest">{shopifyError}</p>
+                )}
 
                 <button
                   className="w-full py-2 bg-surface-highlight border border-surface-border rounded-lg text-[10px] font-bold text-white uppercase tracking-widest hover:bg-surface transition-colors flex items-center justify-center gap-2"
@@ -346,20 +470,23 @@ export default function Inbox() {
                   {(() => {
                     const latestAi = [...messages].reverse().find((m) => m.sender_type === 'AI');
                     const logs = latestAi?.cognitive_logs || {};
+                    if (Array.isArray(logs.flow_steps) && logs.flow_steps.length > 0) {
+                      return logs.flow_steps.map((text, idx) => (
+                        <li key={idx} className="flex items-center gap-2 text-[10px] text-ink-mutedOnDark">
+                          <div className="w-1 h-1 rounded-full bg-ai" />
+                          {text}
+                        </li>
+                      ));
+                    }
                     const items = [];
                     if (logs.intent) {
-                      items.push(`Intent detected: ${logs.intent}`);
+                      items.push(`Detected Intent: ${logs.intent}`);
                     }
-                    if (logs.order_name) {
-                      items.push(`Shopify order ${logs.order_name} found`);
-                    }
-                    if (logs.return_window_days) {
-                      items.push(
-                        `Return policy applied (${logs.return_window_days} days, eligible=${logs.return_eligible ? 'yes' : 'no'})`
-                      );
+                    if (logs.shopify_context?.orders?.length || logs.order_name) {
+                      items.push('Fetched Shopify Orders');
                     }
                     if (logs.tone) {
-                      items.push(`Drafted response with ${logs.tone} tone`);
+                      items.push(`Applied ${logs.tone} Tone`);
                     }
                     if (items.length === 0) {
                       items.push('AI reasoning will appear here as tickets are processed.');

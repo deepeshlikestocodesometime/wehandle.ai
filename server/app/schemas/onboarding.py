@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 class StoreConnect(BaseModel):
@@ -20,3 +20,15 @@ class PersonaUpdate(BaseModel):
 
 class OnboardingStatus(BaseModel):
     onboarding_step: int
+
+
+class PersonaPreviewRequest(BaseModel):
+    query: str = "What is your return policy?"
+    tone_of_voice: Optional[str] = None
+    emoji_density: Optional[str] = None
+
+
+class PersonaPreviewResponse(BaseModel):
+    reply: str
+    cognitive_flow: List[str]
+    sources_used: int
