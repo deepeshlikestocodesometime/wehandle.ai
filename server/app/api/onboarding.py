@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 import httpx
@@ -222,12 +223,31 @@ async def shopify_callback(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing access token from Shopify")
 
     # Persist credentials on the merchant
+    # Prevent one Shopify store from being connected to multiple merchants.
+    existing_result = await db.execute(
+        select(Merchant).where(Merchant.store_domain == shop_domain)
+    )
+    existing_merchant = existing_result.scalar_one_or_none()
+    if existing_merchant and str(existing_merchant.id) != str(merchant.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This Shopify store is already connected to another account",
+        )
+
     merchant.shopify_access_token = access_token
     merchant.shopify_shop_url = f"https://{shop_domain}"
     merchant.shopify_scopes = scopes
     merchant.store_domain = shop_domain
     merchant.onboarding_step = 2
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Ensure we never expose raw DB errors (e.g., UniqueViolation) to the frontend.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This Shopify store is already connected to another account",
+        )
 
     # Redirect the merchant back into the onboarding flow
     redirect_frontend = frontend_url.rstrip("/") + "/step-2"
