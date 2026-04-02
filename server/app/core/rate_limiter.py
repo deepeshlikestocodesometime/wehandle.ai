@@ -23,7 +23,11 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
-        if not (path.startswith("/api/v1/auth") or path.startswith("/webhooks")):
+        if not (
+            path.startswith("/api/v1/auth")
+            or path.startswith("/webhooks")
+            or path.startswith("/api/v1/webhooks")
+        ):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"

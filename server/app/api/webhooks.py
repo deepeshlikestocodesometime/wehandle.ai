@@ -1,4 +1,5 @@
 import hmac
+import logging
 import os
 from hashlib import sha256
 from typing import Any, Dict, Optional
@@ -17,6 +18,7 @@ from app.models.ticket import Ticket, Message, Channel
 from app.services.ai_service import generate_omnichannel_reply
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _verify_signature(request: Request, body: bytes) -> None:
@@ -103,7 +105,12 @@ async def inbound_email_webhook(
 
     merchant = await _resolve_merchant_by_to_email(db, to_email)
     if not merchant:
-        raise HTTPException(status_code=404, detail="Merchant not found for inbound email")
+        # Always 200 so Postmark stops retrying; invalid mail is dropped.
+        logger.warning(
+            "Dropped inbound email: Merchant not found for address %s",
+            to_email,
+        )
+        return {"status": "ignored", "detail": "Merchant not found"}
 
     from_addr = _parse_address(from_email).lower()
 
