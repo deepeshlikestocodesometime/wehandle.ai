@@ -9,18 +9,29 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 import sys
 import os
 
+# Alembic context/config
+from alembic import context
+
 # Add the server directory to python path so we can import 'app'
 sys.path.append(os.getcwd())
+
+# Alembic must run migrations using a synchronous SQLAlchemy engine.
+# Our app uses asyncpg, so we convert `postgresql+asyncpg://` -> `postgresql://` for migrations only.
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    raise RuntimeError("DATABASE_URL environment variable is required")
+
+sync_database_url = database_url
+if sync_database_url.startswith("postgresql+asyncpg://"):
+    sync_database_url = sync_database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+# Override alembic.ini value so all modes use env-provided URL.
+config = context.config
+config.set_main_option("sqlalchemy.url", sync_database_url)
 
 # Import your models
 from app.core.database import Base
 from app.models import * # Registers all models (Merchant, Ticket, etc)
-
-from alembic import context
-
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
-config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
