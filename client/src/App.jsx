@@ -46,26 +46,22 @@ function DashboardGate({ children }) {
   if (status === 'ok') return children;
   if (status === 'step_1') return <Navigate to="/step-1" replace />;
   if (status === 'step_2') return <Navigate to="/step-2" replace />;
-  return <Navigate to="/step-3" replace />;
+  if (status === 'step_3' || status === 'step_4') return <Navigate to="/step-3" replace />;
+  return <Navigate to="/step-1" replace />;
 }
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Authentication: The Front Door */}
-         <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
-        <Route path="/" element={<Navigate to="/auth" replace />} />
 
-        {/* Onboarding Flow */}
-        <Route path="/" element={<Navigate to="/step-1" replace />} />
         <Route path="/step-1" element={<Step1Connect />} />
         <Route path="/step-2" element={<Step2Train />} />
         <Route path="/step-3" element={<Step3BrandVoice />} />
         <Route path="/step-4" element={<Navigate to="/step-3" replace />} />
 
-        {/* Client Dashboard */}
         <Route path="/dashboard" element={<DashboardGate><Overview /></DashboardGate>} />
         <Route path="/dashboard/inbox" element={<DashboardGate><Inbox /></DashboardGate>} />
         <Route path="/dashboard/training" element={<DashboardGate><IntelligenceHub /></DashboardGate>} />
